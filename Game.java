@@ -125,7 +125,7 @@ public boolean applyMove(int row, int col, char player) {
 public int evaluate(char player) {
    /*  Looks at the whole board
 Splits it into lines (rows, cols, diagonals)
-Adds all line scores together */
+Adds all line scores together */ 
 
     char opponent = (player == 'X') ? 'O' : 'X'; 
 
@@ -135,7 +135,7 @@ Adds all line scores together */
 
     int score = 0;
 
-    // Rows
+    // check rows value of each line is added to total score
     for (int i = 0; i < 3; i++) { 
         score += evaluateLine(player, opponent, i, 0, i, 1, i, 2);
     }
