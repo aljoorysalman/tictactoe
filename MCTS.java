@@ -36,9 +36,10 @@ public class MCTS {
 
     // MAIN FUNCTION to get best move using MCTS
     public int[] getMove(Game game, char player, int simulations) {
-
+       long startTime = System.currentTimeMillis(); 
+       int totalNodesCreated = 0;
         Node root = new Node(game, player, null, null); // root node with current game state
-
+        totalNodesCreated++;
         for (int i = 0; i < simulations; i++) { // repeat for the number of simulations
 
             //  1. SELECTION 
@@ -79,7 +80,7 @@ public class MCTS {
 
                 Node child = new Node(newState, nextPlayer, node, move); // create new child node with the new game state after applying the move
                 node.children.add(child); // add the new child to the current node's children
-
+                totalNodesCreated++;
                 node = child; // move down to the new child node for the simulation step
 
                 if (newState.checkWinner(currentPlayer)) { // if the move results in a win, we can immediately determine the result for backpropagation
@@ -109,7 +110,7 @@ public class MCTS {
                     simPlayer = (simPlayer == 'X') ? 'O' : 'X';
                 }
             }
-
+            
             //  4. BACKPROPAGATION 
             Node temp = node;
 
@@ -131,6 +132,14 @@ public class MCTS {
             }
         }
 
+
+    long endTime = System.currentTimeMillis();
+    long timeTaken = endTime - startTime;
+    System.out.println("======= MCTS STATS =======");
+    System.out.println("Time: " + timeTaken + " ms");
+    System.out.println("Simulations: " + simulations);
+    System.out.println("Total Nodes Created: " + totalNodesCreated);
+  
         //  BEST MOVE 
         Node best = null;
         int bestVisits = -1;

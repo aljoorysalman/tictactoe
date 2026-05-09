@@ -157,8 +157,8 @@ private int getDepth(String difficulty) {
 
 private int getSimulations(String difficulty) {
     switch (difficulty) {
-        case "Easy": return 200;
-        case "Medium": return 800;
+        case "Easy": return 500;
+        case "Medium": return 1000;
         default: return 2000;
     }
 }
