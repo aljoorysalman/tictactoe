@@ -2,153 +2,148 @@ import java.util.*;
 
 public class MCTS {
 
-    // ── Node ──────────────────────────────────────────────────────
-    static class MCTSNode {
+    private static final Random random = new Random();
+
+    //  Node class representing a game state in the MCTS tree
+    static class Node {
         Game game;
-        char  player;       // whose turn it is FROM this node
-        MCTSNode parent;
-        int[] move;         // move played to reach this node (null for root)
+        char playerTurn;   // who plays from this node
+        Node parent;
+        int[] moveFromParent;
+        int wins = 0; // number of wins during simulations from this node
+        int visits = 0; // number of times this node was visited during simulations
+        List<int[]> untriedMoves; // legal moves that haven't been tried yet from this node
+        List<Node> children = new ArrayList<>(); // child nodes representing game states after applying move
 
-        int wins   = 0;
-        int visits = 0;
-
-        List<int[]>     untriedMoves;
-        List<MCTSNode>  children = new ArrayList<>();
-
-        MCTSNode(Game game, char player, MCTSNode parent, int[] move) {
-            this.game        = game.copy();
-            this.player       = player;
-            this.parent       = parent;
-            this.move         = move;
-            this.untriedMoves = new ArrayList<>(game.getLegalMoves());
+        Node(Game game, char playerTurn, Node parent, int[] moveFromParent) { // copy game 
+            this.game = game.copy();
+            this.playerTurn = playerTurn;
+            this.parent = parent;
+            this.moveFromParent = moveFromParent;
+            this.untriedMoves = new ArrayList<>(game.getLegalMoves()); // get legal moves for this state
         }
     }
 
-    // ── UCB1 score ────────────────────────────────────────────────
-    private static double ucb1(MCTSNode node, int parentVisits, double c) {
-        if (node.visits == 0) return Double.POSITIVE_INFINITY;
-        return (double) node.wins / node.visits
-               + c * Math.sqrt(Math.log(parentVisits) / node.visits);
+    // UCB1 (selection formula) 
+    private double ucb1(Node node, int parentVisits) { // c is exploration parameter
+        if (node.visits == 0) return Double.MAX_VALUE; // prioritize unvisited nodes
+
+        double winRate = (double) node.wins / node.visits; // exploitation term, we know how good this node is based on simulations
+        double explore = 2 * Math.sqrt(Math.log(parentVisits) / node.visits); // exploration term, encourages trying less visited nodes to discover their potential
+
+        return winRate + explore; // exploitation + exploration
     }
 
-    private static final Random RNG = new Random();
+    // MAIN FUNCTION to get best move using MCTS
+    public int[] getMove(Game game, char player, int simulations) {
 
-    // ── Public entry point ────────────────────────────────────────
-    /**
-     * Returns the best [row,col] move for 'player' after running
-     * numSimulations rollouts.  exploration ≈ 1.41 is a good default.
-     */
-    public int[] getMove(Game game, char player, int numSimulations, double exploration) {
+        Node root = new Node(game, player, null, null); // root node with current game state
 
-        MCTSNode root = new MCTSNode(game, player, null, null);
+        for (int i = 0; i < simulations; i++) { // repeat for the number of simulations
 
-        for (int sim = 0; sim < numSimulations; sim++) {
+            //  1. SELECTION 
+            Node node = root;
 
-            // ── 1. SELECTION ──────────────────────────────────────
-            MCTSNode node = root;
-            while (node.untriedMoves.isEmpty() && !node.children.isEmpty()) {
-                final int pv = node.visits;
-                final double ex = exploration;
-                node = node.children.stream()
-                    .max(Comparator.comparingDouble(c -> ucb1(c, pv, ex)))
-                    .get();
+            while (node.untriedMoves.isEmpty() && !node.children.isEmpty()) { // keep selecting best child by UCB1 , until we reach a node that has untried moves or is a leaf node (no children)
+
+                Node bestChild = null;
+                double bestScore = -1;
+                int parentVisits = node.visits;
+
+                for (Node child : node.children) { // calculate UCB1 score for each child
+                    double score = ucb1(child, parentVisits);
+
+                    if (score > bestScore) {  // select child with highest UCB1 score
+                        bestScore = score;
+                        bestChild = child;
+                    } 
+                }
+
+                node = bestChild;
             }
 
-            // ── 2. EXPANSION ──────────────────────────────────────
-            Integer terminalResult = null;
+            //  2. EXPANSION 
+            int result = 0;
 
-            if (!node.untriedMoves.isEmpty()) {
-                int idx      = RNG.nextInt(node.untriedMoves.size());
-                int[] picked = node.untriedMoves.remove(idx);
+            if (!node.untriedMoves.isEmpty()) { // if there are untried moves, expand by trying one of them
 
-                Game newGame = node.game.copy();
-                char  mover   = node.player;
-                newGame.applyMove(picked[0], picked[1], mover);
+                int moveIndex = random.nextInt(node.untriedMoves.size()); // select a random move from untried moves to expand
+                int[] move = node.untriedMoves.remove(moveIndex); // select and remove a move from untried moves
 
-                char nextPlayer = (mover == 'X') ? 'O' : 'X';
-                MCTSNode child  = new MCTSNode(newGame, nextPlayer, node, picked);
-                node.children.add(child);
-                node = child;
+                Game newState = node.game.copy(); // create a copy of the game state to apply the move without affecting the original node's game state
+                char currentPlayer = node.playerTurn; // the player who will make the move at this node
 
-                if (node.game.checkWinner(mover)) {
-                    terminalResult = (mover == player) ? 1 : -1;
+                newState.applyMove(move[0], move[1], currentPlayer);
+
+                char nextPlayer = (currentPlayer == 'X') ? 'O' : 'X'; 
+
+                Node child = new Node(newState, nextPlayer, node, move); // create new child node with the new game state after applying the move
+                node.children.add(child); // add the new child to the current node's children
+
+                node = child; // move down to the new child node for the simulation step
+
+                if (newState.checkWinner(currentPlayer)) { // if the move results in a win, we can immediately determine the result for backpropagation
+                    result = (currentPlayer == player) ? 1 : -1;
                 }
             }
 
-            // ── 3. SIMULATION (random rollout) ────────────────────
-            int result;
-            if (terminalResult != null) {
-                result = terminalResult;
-            } else {
-                Game  simGame  = node.game.copy();
-                char   simPlayer = node.player;
-                char   opp       = (player == 'X') ? 'O' : 'X';
+            //  3. SIMULATION 
+            if (result == 0) { //not a win from expansion, we need to simulate a random playout to determine the result
 
-                // Cycle detection: the 3-piece rule can create loops
-                Map<String, Integer> seenStates = new HashMap<>();
-                boolean won = false;
+                Game simGame = node.game.copy(); // create a copy of the game state at the current node for simulation
+                char simPlayer = node.playerTurn;
 
-                for (int step = 0; step < 100; step++) {
-                    String key = boardKey(simGame);
-                    int cnt = seenStates.getOrDefault(key, 0) + 1;
-                    seenStates.put(key, cnt);
-                    if (cnt > 1) break;  // cycle → treat as draw
+                for (int step = 0; step < 100; step++) { // limit simulation steps to prevent infinite loops
 
                     List<int[]> moves = simGame.getLegalMoves();
-                    if (moves.isEmpty()) break;
+                    
+                              // availble moves , picks one randomly for the simulation playout, simulating a random game 
+                    int[] move = moves.get(random.nextInt(moves.size())); // select random move for simulation
+                    simGame.applyMove(move[0], move[1], simPlayer);
 
-                    int[] m = moves.get(RNG.nextInt(moves.size()));
-                    simGame.applyMove(m[0], m[1], simPlayer);
+                    if (simGame.checkWinner(simPlayer)) {
+                        result = (simPlayer == player) ? 1 : -1; //record win or loss result
+                        break;
+                    }
 
-                    if (simGame.checkWinner(simPlayer)) { won = true; break; }
                     simPlayer = (simPlayer == 'X') ? 'O' : 'X';
                 }
-
-                if      (simGame.checkWinner(player)) result =  1;
-                else if (simGame.checkWinner(opp))    result = -1;
-                else                                   result =  0;
             }
 
-            // ── 4. BACKPROPAGATION ────────────────────────────────
-            MCTSNode n = node;
-            while (n != null) {
-                n.visits++;
-                // wins are from the perspective of the node's *parent* (the one who moved)
-                char moverToNode = (n.player == 'X') ? 'O' : 'X'; // who placed to get here
-                if (moverToNode == player) n.wins += result;
-                else                       n.wins -= result;
-                n = n.parent;
+            //  4. BACKPROPAGATION 
+            Node temp = node;
+
+            // backpropagate the result up the tree,
+            //  updating wins and visits for each node along the path 
+            // from the expanded/simulated node back to the root
+            while (temp != null) { 
+                temp.visits++; // increment visit count for this node
+
+                char movePlayer = (temp.playerTurn == 'X') ? 'O' : 'X';
+
+                if (movePlayer == player) {
+                    temp.wins += result;  // propagate result upward
+                } else {
+                    temp.wins -= result; // opponent's perspective 
+                }
+
+                temp = temp.parent; // move up to parent node
             }
         }
 
-        // Pick the most-visited child
-        MCTSNode best = root.children.stream()
-            .max(Comparator.comparingInt(c -> c.visits))
-            .orElse(null);
+        //  BEST MOVE 
+        Node best = null;
+        int bestVisits = -1;
 
-        if (best == null) {
-            // Fallback: random legal move (shouldn't happen)
-            List<int[]> legal = game.getLegalMoves();
-            return legal.get(RNG.nextInt(legal.size()));
+        for (Node child : root.children) {
+            if (child.visits > bestVisits) { // select child with most visits as best move, Most visited = MCTS found it consistently promising
+                bestVisits = child.visits;
+                best = child;
+            }
         }
-        return best.move;
+
+        return best.moveFromParent;
     }
 
-    // ── Convenience overload (default exploration = 1.41) ─────────
-    public int[] getMove(Game game, char player, int numSimulations) {
-        return getMove(game, player, numSimulations, 1.41);
-    }
-
-    // ── Game state key for cycle detection ───────────────────────
-    private static String boardKey(Game b) {
-        StringBuilder sb = new StringBuilder();
-        for (int r = 0; r < 3; r++)
-            for (int c = 0; c < 3; c++)
-                sb.append(b.getBoard());
-        // Also encode queue order so shifted states differ
-        for (int[] cell : b.Xhistory) sb.append(cell[0]).append(cell[1]);
-        sb.append('|');
-        for (int[] cell : b.Ohistory) sb.append(cell[0]).append(cell[1]);
-        return sb.toString();
-    }
+    
 }
