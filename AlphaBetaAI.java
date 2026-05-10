@@ -37,7 +37,6 @@ public class AlphaBetaAI {
     private int alphaBeta(Game board, int depth, int alpha, int beta, boolean isMaximizing, char aiPlayer) { 
         nodesExplored++;
         char opponent = (aiPlayer == 'X') ? 'O' : 'X';
-        char turn = (isMaximizing) ? aiPlayer : opponent; // whose turn it is in this node
 
         // Terminal
         if (board.checkWinner(aiPlayer)) return 1000; // If AI already wins return big positive score
