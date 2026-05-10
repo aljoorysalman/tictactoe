@@ -38,7 +38,6 @@ public class AlphaBetaAI {
         nodesExplored++;
         char opponent = (aiPlayer == 'X') ? 'O' : 'X';
 
-
         // Terminal
         if (board.checkWinner(aiPlayer)) return 1000; // If AI already wins return big positive score
         if (board.checkWinner(opponent)) return -1000; //If opponent wins return big negative score

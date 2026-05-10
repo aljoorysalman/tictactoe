@@ -2,7 +2,6 @@ import java.util.*;
 
 public class MCTS {
 
-    private static final Random random = new Random();
 
     //  Node class representing a game state in the MCTS tree
     static class Node {
@@ -68,7 +67,7 @@ public class MCTS {
 
             if (!node.untriedMoves.isEmpty()) { // if there are untried moves, expand by trying one of them
 
-                int moveIndex = random.nextInt(node.untriedMoves.size()); // select a random move from untried moves to expand
+                int moveIndex = (int) (Math.random() * node.untriedMoves.size()); // select a random move from untried moves to expand
                 int[] move = node.untriedMoves.remove(moveIndex); // select and remove a move from untried moves
 
                 Game newState = node.game.copy(); // create a copy of the game state to apply the move without affecting the original node's game state
@@ -99,7 +98,7 @@ public class MCTS {
                     List<int[]> moves = simGame.getLegalMoves();
                     
                               // availble moves , picks one randomly for the simulation playout, simulating a random game 
-                    int[] move = moves.get(random.nextInt(moves.size())); // select random move for simulation
+                    int[] move = moves.get((int) (Math.random() * moves.size())); // select random move for simulation
                     simGame.applyMove(move[0], move[1], simPlayer);
 
                     if (simGame.checkWinner(simPlayer)) {
